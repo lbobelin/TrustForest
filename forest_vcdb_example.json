@@ -1,0 +1,30 @@
+{
+  "outputs": [
+    "actor_reliability",
+    "attr_criticality",
+    "global_incident_trust"
+  ],
+  "nodes": [
+    {
+      "id": "actor_reliability",
+      "inputs": ["raw_actor_field"],
+      "input_types": ["PROBA_SCORE"],
+      "output_type": "DST_TRIPLET",
+      "fusion": "fuse_actor_reliability"
+    },
+    {
+      "id": "attr_criticality",
+      "inputs": ["raw_attribute_field"],
+      "input_types": ["PROBA_SCORE"],
+      "output_type": "DST_TRIPLET",
+      "fusion": "fuse_attribute_criticality"
+    },
+    {
+      "id": "global_incident_trust",
+      "inputs": ["actor_reliability", "attr_criticality"],
+      "input_types": ["DST_TRIPLET", "DST_TRIPLET"],
+      "output_type": "DST_TRIPLET",
+      "fusion": "root_global_fusion"
+    }
+  ]
+}
