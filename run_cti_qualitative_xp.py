@@ -137,12 +137,12 @@ if __name__ == "__main__":
     u_sorted = [results_u[i] for i in sorted_idx]
     
     plt.figure(figsize=(9, 4.5))
-    plt.plot(b_sorted, label="IoC Actionable Threat Belief ($b$)", color="darkgreen", linewidth=2.5)
+    plt.plot(b_sorted, label="CTI Trust Belief ($b$)", color="darkgreen", linewidth=2.5)
     plt.fill_between(range(len(u_sorted)), b_sorted, [b + u for b, u in zip(b_sorted, u_sorted)], 
-                     color="green", alpha=0.15, label="CTI Conflicting Uncertainty ($u$)")
+                     color="green", alpha=0.15, label="CTI Uncertainty ($u$)")
     
     plt.title("Qualitative CTI (MISP/STIX) Attribute Fusion Profile", fontsize=12, fontweight="bold")
-    plt.xlabel("Processed Public Threat Indicators (Sorted by Actionability)")
+    plt.xlabel("Processed Public Threat Indicators (Sorted by relevance)")
     plt.ylabel("DST Mass Distribution")
     plt.legend(loc="upper left")
     plt.grid(True, linestyle=":", alpha=0.6)
