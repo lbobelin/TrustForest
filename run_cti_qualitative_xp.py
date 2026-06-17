@@ -2,21 +2,20 @@ import random
 import matplotlib.pyplot as plt
 from typing import List, Dict
 
-# Import des composants de votre bibliothèque hypothétique
 from lib import (
     TrustForestEngine, FusionNode, QualitativeLabel, 
     DstTriplet, dempster_shafer_combine, MissingDimension
 )
 
 # =====================================================================
-# 1. FONCTIONS DE FUSION POUR DONNÉES QUALITATIVES
+# 1. MERGE FUNCTIONS FOR CTI QUALITATIVE DATA
 # =====================================================================
 
 def fuse_source_trust(inputs: List[any]) -> DstTriplet:
-    """Traduit le label qualitatif de l'Amirauté (MISP) en triplet DST."""
+    """Translates the qualitative label from the MISP (Admiralty) into a DST triplet."""
     source_label = inputs[0]
     if isinstance(source_label, MissingDimension):
-        return DstTriplet(0.0, 0.0, 1.0) # Source inconnue = Incertitude totale
+        return DstTriplet(0.0, 0.0, 1.0) # Unknown source = Total uncertainty
     
     lbl = source_label.label
     if lbl == "A_Completely_Reliable":
@@ -29,14 +28,14 @@ def fuse_source_trust(inputs: List[any]) -> DstTriplet:
         return DstTriplet(0.1, 0.6, 0.3)
 
 def fuse_context_severity(inputs: List[any]) -> DstTriplet:
-    """Fusionne le TLP (diffusion) et le Type de menace (gravité informatique)."""
+    """Fuses the TLP (distribution) and threat type (cyber severity)."""
     tlp_node = inputs[0]
     type_node = inputs[1]
     
     b, d, u = 0.0, 0.0, 1.0
     
     if not isinstance(tlp_node, MissingDimension):
-        if tlp_node.label in ["RED", "AMBER"]: # Diffusion restreinte = Incident critique potentiel
+        if tlp_node.label in ["RED", "AMBER"]: # Restricted distribution = Potential critical incident
             b += 0.4
         else:
             d += 0.2
@@ -54,34 +53,34 @@ def fuse_context_severity(inputs: List[any]) -> DstTriplet:
     return DstTriplet(b/total, d/total, 0.2/total)
 
 def root_cti_evaluation(inputs: List[any]) -> DstTriplet:
-    """Fusion finale par la règle de Dempster-Shafer."""
+    """Final fusion by the Dempster-Shafer rule."""
     t1 = inputs[0] if not isinstance(inputs[0], MissingDimension) else DstTriplet(0.0, 0.0, 1.0)
     t2 = inputs[1] if not isinstance(inputs[1], MissingDimension) else DstTriplet(0.0, 0.0, 1.0)
     return dempster_shafer_combine(t1, t2)
 
 # =====================================================================
-# 2. SIMULATEUR DE FLUX MISP / STIX PUBLIC
+# 2. SIMULATOR OF PUBLIC MISP / STIX FLOWS
 # =====================================================================
 
 def generate_public_misp_stream(count: int = 3000) -> List[Dict]:
     stream = []
     for _ in range(count):
-        # 3 catégories d'IoC typiques trouvés dans les dumps de CTI publics
+        #  Typical IoC categories found in public CTI dumps
         category = random.choices([0, 1, 2], weights=[0.70, 0.20, 0.10], k=1)[0]
         
-        if category == 0: # 1. Bruit de fond OSINT (Faible confiance, TLP:CLEAR)
+        if category == 0: # 1. OSINT background noise (Low confidence, TLP:CLEAR)
             stream.append({
                 "source": random.choice(["C_Fairly_Reliable", "D_Not_Usually_Reliable"]),
                 "tlp": "CLEAR",
                 "type": "Osint_Scrape"
             })
-        elif category == 1: # 2. Flux Commercial standard (Confiance moyenne, Botnets)
+        elif category == 1: # 2. Standard Commercial Traffic (Medium Trust, Botnets)
             stream.append({
                 "source": "B_Usually_Reliable",
                 "tlp": "AMBER",
                 "type": "Generic_Botnet"
             })
-        else: # 3. Alerte d'un CERT étatique (Confiance absolue, APT cyber-espionnage)
+        else: # 3. Alert from a state-sponsored CERT (Absolute trust, APT cyber-spying)
             stream.append({
                 "source": "A_Completely_Reliable",
                 "tlp": "RED",
@@ -90,7 +89,7 @@ def generate_public_misp_stream(count: int = 3000) -> List[Dict]:
     return stream
 
 # =====================================================================
-# 3. PIPELINE DE BENCHMARK
+# 3. BENCHMARK PIPELINE
 # =====================================================================
 
 if __name__ == "__main__":
@@ -122,7 +121,7 @@ if __name__ == "__main__":
             "leaf_type": QualitativeLabel(ioc["type"], v_type)
         }
         
-        # Injection volontaire de données manquantes (ex: flux mal formaté ou TLP omis)
+        # Intentional insertion of missing data (e.g., malformed stream or omitted TLP)
         if random.random() < 0.08:
             del leaves["leaf_tlp"]
             
@@ -131,7 +130,7 @@ if __name__ == "__main__":
             results_b.append(res.b)
             results_u.append(res.u)
 
-    # Extraction et tri des résultats pour analyse graphique
+    #  Extraction and sorting of results for graphical analysis
     sorted_idx = sorted(range(len(results_b)), key=lambda k: results_b[k])
     b_sorted = [results_b[i] for i in sorted_idx]
     u_sorted = [results_u[i] for i in sorted_idx]
@@ -148,4 +147,4 @@ if __name__ == "__main__":
     plt.grid(True, linestyle=":", alpha=0.6)
     
     plt.savefig("cti_qualitative_results.pdf")
-    print("[+] Expérience CTI Qualitative terminée avec succès (cti_qualitative_results.pdf).")
+    print("[+] CTI Qualitative experiment completed successfully (cti_qualitative_results.pdf).")

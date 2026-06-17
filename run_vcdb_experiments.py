@@ -4,7 +4,6 @@ import glob
 import matplotlib.pyplot as plt
 from typing import Dict, List, Tuple, Optional
 
-# Import du moteur et des types depuis votre bibliothèque lib.py
 from lib import (
     TrustForestEngine, FusionNode, ProbabilisticScore, 
     QualitativeLabel, DstTriplet, root_global_fusion,
@@ -12,15 +11,15 @@ from lib import (
 )
 
 def init_experiment_engine() -> TrustForestEngine:
-    """Initialise la topologie du graphe pour les expérimentations VERIS."""
+    """Initializes the graph topology for VERIS experiments."""
     engine = TrustForestEngine()
     
-    # Déclaration des nœuds selon l'architecture proposée
+    # Declaration of nodes according to the proposed architecture
     actor_node = FusionNode("actor_reliability", ["PROBA_SCORE"], "DST_TRIPLET", fuse_actor_reliability)
     attr_node = FusionNode("attr_criticality", ["PROBA_SCORE"], "DST_TRIPLET", fuse_attribute_criticality)
     root_node = FusionNode("global_incident_trust", ["DST_TRIPLET", "DST_TRIPLET"], "DST_TRIPLET", root_global_fusion)
 
-    # Enregistrement des liaisons (Arêtes)
+    # Registration of edges (Links)
     engine.register_node(actor_node, ["raw_actor_field"])
     engine.register_node(attr_node, ["raw_attribute_field"])
     engine.register_node(root_node, ["actor_reliability", "attr_criticality"])
@@ -29,13 +28,13 @@ def init_experiment_engine() -> TrustForestEngine:
     return engine
 
 def get_first_scavenged_string(data_structure) -> Optional[str]:
-    """Navigue récursivement dans les structures VERIS pour extraire la première string valide."""
+    """Navigates recursively through the VERIS structures to extract the first valid string."""
     if isinstance(data_structure, str):
         return data_structure
     if isinstance(data_structure, list) and len(data_structure) > 0:
         return get_first_scavenged_string(data_structure[0])
     if isinstance(data_structure, dict):
-        # Si c'est un dictionnaire, on cherche une valeur textuelle ou une clé 'variety'
+        # If it's a dictionary, we look for a text value or a ‘variety’ key
         if "variety" in data_structure:
             return get_first_scavenged_string(data_structure["variety"])
         for val in data_structure.values():
@@ -45,13 +44,13 @@ def get_first_scavenged_string(data_structure) -> Optional[str]:
     return None
 
 def map_json_to_leaves(record: Dict) -> Dict:
-    """Traduit de manière ultra-robuste le JSON VERIS en feuilles typées pour le moteur."""
+    """Converts the VERIS JSON into type-safe sheets for the engine in an ultra-robust manner."""
     leaves = {}
     
-    # Extraction sécurisée de l'Acteur
+    # Secure Extraction of the Actor
     try:
         actor_data = record.get("actor", {}).get("external", {}).get("variety", None)
-        if not actor_data: # Fallback si ce n'est pas un acteur externe
+        if not actor_data: # Fallback if it's not an external actor
             actor_data = record.get("actor", {}).get("internal", {}).get("variety", None)
             
         actor_str = get_first_scavenged_string(actor_data)
@@ -61,9 +60,9 @@ def map_json_to_leaves(record: Dict) -> Dict:
     except Exception:
         pass
 
-    # Extraction sécurisée de l'Attribut (Triade CIA / Confidentialité)
+    # Secure Extraction of the Attribute (CIA Triad / Confidentiality)
     try:
-        # Résout le problème où 'data' ou 'confidentiality' est une liste ou un dict imbriqué
+        # Resolves the issue where 'data' or 'confidentiality' is a list or nested dictionary
         conf_data = record.get("attribute", {}).get("confidentiality", {}).get("data", None)
         attr_str = get_first_scavenged_string(conf_data)
         
@@ -78,17 +77,17 @@ def map_json_to_leaves(record: Dict) -> Dict:
 def run_pipeline() -> Tuple[List[float], List[float], List[float], List[float]]:
     engine = init_experiment_engine()
     
-    # Chemins d'accès vers votre échantillon VCDB
+    # Paths to your VCDB sample
     search_path = os.path.join("data", "VERIS_sample", "*.json")
     json_files = glob.glob(search_path)
     
     if not json_files:
-        print(f"[-] Aucun fichier JSON trouvé dans {search_path}. Vérifiez l'arborescence.")
+        print(f"[-] No JSON files found in {search_path}. Please check the directory structure.")
         return [], [], [], []
 
-    print(f"[+] Lancement des analyses sur {len(json_files)} fichiers VERIS...")
+    print(f"[+] Launch of analyses on {len(json_files)} VERIS files...")
 
-    # Tableaux pour stocker les métriques pour les graphiques
+    # Tables for storing metrics for charts
     nominal_uncertainties = []
     nominal_beliefs = []
     degraded_uncertainties = []
@@ -101,9 +100,9 @@ def run_pipeline() -> Tuple[List[float], List[float], List[float], List[float]]:
             except json.JSONDecodeError:
                 continue
 
-            # --- 1. RUN NOMINAL (Données brutes de la base) ---
+            # --- 1.  NOMINAL RUN (Raw data from the database) ---
             leaves_nominal = map_json_to_leaves(record)
-            # On ne garde que les enregistrements qui ont au moins une info exploitable
+            # We only keep records that contain at least one piece of useful information.
             if not leaves_nominal:
                 continue
                 
@@ -112,10 +111,10 @@ def run_pipeline() -> Tuple[List[float], List[float], List[float], List[float]]:
                 nominal_uncertainties.append(res_nominal.u)
                 nominal_beliefs.append(res_nominal.b)
 
-            # --- 2. RUN DEGRADED (On ampute volontairement l'acteur pour tester l'asymétrie) ---
+            # --- 2.  DEGRADED RUN(The actor is intentionally removed to test asymmetry) ---
             record_degraded = record.copy()
             if "actor" in record_degraded:
-                del record_degraded["actor"] # Injection d'anomalie de rétention
+                del record_degraded["actor"] # Retention Anomaly Injection
                 
             leaves_degraded = map_json_to_leaves(record_degraded)
             res_degraded = engine.evaluate("global_incident_trust", leaves_degraded)
@@ -126,13 +125,13 @@ def run_pipeline() -> Tuple[List[float], List[float], List[float], List[float]]:
     return nominal_uncertainties, nominal_beliefs, degraded_uncertainties, degraded_beliefs
 
 def generate_plots(nom_u: List[float], nom_b: List[float], deg_u: List[float], deg_b: List[float]):
-    """Génère des courbes et histogrammes de distribution académiques."""
-    print("[+] Génération des graphiques de performance pour l'article...")
+    """Generates curves and distribution histograms for academic purposes."""
+    print("[+] Generating performance plots for the paper...")
     
     plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-    # --- GRAPH 1 : Évolution et Distribution de l'Incertitude (u) ---
+    # --- GRAPH 1 : Evolution and Distribution of Uncertainty (u) ---
     ax1.hist(nom_u, bins=20, alpha=0.6, label='Nominal Run (Full Data)', color='#2ca02c')
     ax1.hist(deg_u, bins=20, alpha=0.6, label='Degraded Run (Missing Actor)', color='#d62728')
     ax1.set_title("Axiomatic Uncertainty Propagation ($u$)", fontsize=12, fontweight='bold')
@@ -140,8 +139,8 @@ def generate_plots(nom_u: List[float], nom_b: List[float], deg_u: List[float], d
     ax1.set_ylabel("Number of VERIS Incidents")
     ax1.legend(loc='upper right')
 
-    # --- GRAPH 2 : Stabilité de la Croyance (b) contre l'effet Compensatoire ---
-    # Tri des données pour une visualisation propre en courbe cumulative/tendance
+    # --- GRAPH 2 : Stability of the Belief (b) against the Compensatory Effect ---
+    # Sorting the data for a proper visualization in a cumulative/trend curve
     nom_b_sorted = sorted(nom_b)
     deg_b_sorted = sorted(deg_b)
     
@@ -154,17 +153,17 @@ def generate_plots(nom_u: List[float], nom_b: List[float], deg_u: List[float], d
 
     plt.tight_layout()
     
-    # Sauvegarde en haute définition pour LaTeX (PDF vectoriel ou PNG 300 DPI)
+    # Save in high definition for LaTeX (PDF vectorial or PNG 300 DPI)
     plot_path_png = "veris_experimental_results.png"
     plot_path_pdf = "veris_experimental_results.pdf"
     plt.savefig(plot_path_png, dpi=300)
     plt.savefig(plot_path_pdf)
     
-    print(f"[+] Graphique sauvegardé avec succès :\n    -> {plot_path_png}\n    -> {plot_path_pdf}")
+    print(f"[+] Graph saved successfully :\n    -> {plot_path_png}\n    -> {plot_path_pdf}")
 
 if __name__ == "__main__":
     nom_u, nom_b, deg_u, deg_b = run_pipeline()
     if nom_u:
         generate_plots(nom_u, nom_b, deg_u, deg_b)
     else:
-        print("[-] Échec de l'expérimentation : Aucune donnée collectée.")
+        print("[-] Failed to run the experiment : No data collected.")

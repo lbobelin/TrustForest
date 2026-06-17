@@ -2,7 +2,6 @@ import random
 import matplotlib.pyplot as plt
 from typing import List, Dict
 
-# Import de votre bibliothèque
 from lib import (
     TrustForestEngine, FusionNode, ProbabilisticScore, 
     QualitativeLabel, DstTriplet, dempster_shafer_combine,
@@ -10,56 +9,56 @@ from lib import (
 )
 
 # =====================================================================
-# 1. FONCTIONS DE FUSION DÉDIÉES À L'UEBA
+# 1. FUSION FUNCTIONS DEDICATED TO UEBA
 # =====================================================================
 
 def fuse_ueba_signal(inputs: List[any]) -> DstTriplet:
-    """Projette le score ML brut [0,1] en triplet DST."""
+    """Projects the raw ML score [0,1] into a DST triplet."""
     val = inputs[0]
     if isinstance(val, MissingDimension):
-        return DstTriplet(0.0, 0.0, 1.0) # Capteur ML hors-ligne = Incertitude totale
+        return DstTriplet(0.0, 0.0, 1.0) # Offline ML sensor = Total uncertainty
     
     score = val.value
     if score > 0.8:
-        # Forte suspicion d'anomalie, mais on garde de l'incertitude 
-        # car le ML ne connaît pas l'intention de l'utilisateur.
+        # Strong suspicion of anomaly, but we keep some uncertainty
+        # because the ML doesn't know the user's intent.
         return DstTriplet(0.6, 0.0, 0.4)
     elif score < 0.3:
-        return DstTriplet(0.0, 0.8, 0.2) # Comportement sain prouvé
+        return DstTriplet(0.0, 0.8, 0.2) # Proven safe behavior
     return DstTriplet(0.1, 0.1, 0.8)
 
 def fuse_context_risk(inputs: List[any]) -> DstTriplet:
-    """Combine le rôle de l'utilisateur (Qualitatif) et l'heure (Probabiliste)."""
+    """Combine the user's role (Qualitative) and the time of day (Probabilistic)."""
     user_tier = inputs[0]
     hours_score = inputs[1]
     
-    # Par défaut, si tout est manquant
+    # By default, if everything is missing
     b, d, u = 0.0, 0.0, 1.0
     
     if not isinstance(user_tier, MissingDimension):
-        if user_tier.label == "CRITICAL": # Profil à haut risque (ex: Admin)
+        if user_tier.label == "CRITICAL": # High-risk profile (e.g., Admin)
             b += 0.3
         elif user_tier.label == "LOW":
             d += 0.4
             
     if not isinstance(hours_score, MissingDimension):
-        if hours_score.value < 0.3: # Activité nocturne suspecte
+        if hours_score.value < 0.3: # Suspicious nighttime activity
             b += 0.4
         else:
             d += 0.3
             
-    # Normalisation pour créer un triplet DST valide
-    total = b + d + 0.3 # 0.3 d'incertitude incompressible pour le contexte
+    # Standardization to create a valid DST triplet
+    total = b + d + 0.3 # 0.3 of unavoidable uncertainty for the context
     return DstTriplet(b/total, d/total, 0.3/total)
 
 def root_security_decision(inputs: List[any]) -> DstTriplet:
-    """Fusionne le signal ML et le contexte RH/Horaire."""
+    """Fuses the ML signal and the RH/contextual information."""
     t1 = inputs[0] if not isinstance(inputs[0], MissingDimension) else DstTriplet(0.0, 0.0, 1.0)
     t2 = inputs[1] if not isinstance(inputs[1], MissingDimension) else DstTriplet(0.0, 0.0, 1.0)
     return dempster_shafer_combine(t1, t2)
 
 # =====================================================================
-# 2. GÉNÉRATEUR DE TÉLÉMÉTRIE FLUX UEBA SYNTHÉTIQUE
+# 2.  SYNTHETIC UEBA FLUX TELEMETRY GENERATOR
 # =====================================================================
 
 def generate_ueba_logs(count: int = 5000) -> List[Dict]:
@@ -69,33 +68,33 @@ def generate_ueba_logs(count: int = 5000) -> List[Dict]:
     for _ in range(count):
         scenario = random.choices([0, 1, 2], weights=[0.85, 0.10, 0.05], k=1)[0]
         
-        if scenario == 0: # 1. Comportement nominal standard
+        if scenario == 0: # 1. Standard nominal behavior
             logs.append({
                 "ueba_score": random.uniform(0.0, 0.25),
                 "user_label": random.choice(["MEDIUM", "LOW"]),
-                "hours": random.uniform(0.8, 1.0) # Pleine journée
+                "hours": random.uniform(0.8, 1.0) # Full day
             })
-        elif scenario == 1: # 2. Anomalie bénigne (Faux positif ML classique)
+        elif scenario == 1: # 2. Benign Anomaly (Classic False Positive ML)
             logs.append({
-                "ueba_score": random.uniform(0.85, 0.99), # Alerte rouge ML
-                "user_label": "LOW", # Simple utilisateur
-                "hours": random.uniform(0.8, 1.0) # En journée, comportement métier explicable
+                "ueba_score": random.uniform(0.85, 0.99), # Red ML Alert
+                "user_label": "LOW", # Simple User
+                "hours": random.uniform(0.8, 1.0) # During the day, explainable business behavior
             })
-        else: # 3. Vraie Attaque (Exfiltration nocturne par un compte à privilèges)
+        else: # 3. Real Attack (Nighttime Exfiltration by a Privileged Account)
             logs.append({
                 "ueba_score": random.uniform(0.90, 1.0),
                 "user_label": "CRITICAL",
-                "hours": random.uniform(0.0, 0.1) # Milieu de la nuit
+                "hours": random.uniform(0.0, 0.1) # Middle of the night
             })
             
     return logs
 
 # =====================================================================
-# 3. PIPELINE D'ÉVALUATION
+# 3. EVALUATION PIPELINE
 # =====================================================================
 
 if __name__ == "__main__":
-    # Initialisation du moteur
+    # Engine Initialization
     engine = TrustForestEngine()
     
     node_ueba = FusionNode("node_ueba", ["PROBA_SCORE"], "DST_TRIPLET", fuse_ueba_signal)
@@ -106,10 +105,10 @@ if __name__ == "__main__":
     engine.register_node(node_ctx, ["leaf_user", "leaf_hours"])
     engine.register_node(node_root, ["node_ueba", "node_ctx"])
     
-    # Génération des données
+    # Data Generation
     dataset = generate_ueba_logs(5000)
     
-    # Listes pour analyse graphique
+    # Lists for graphical analysis
     final_beliefs = []
     final_uncertainties = []
     raw_ueba_scores = []
@@ -117,14 +116,14 @@ if __name__ == "__main__":
     vocab = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
 
     for log in dataset:
-        # Encodage strict dans les types de la bibliothèque
+        # Strict typing in library types
         leaves = {
             "leaf_ueba": ProbabilisticScore(log["ueba_score"]),
             "leaf_user": QualitativeLabel(log["user_label"], vocab),
             "leaf_hours": ProbabilisticScore(log["hours"])
         }
         
-        # Simulation d'une panne de capteur aléatoire sur 5% des paquets (Asymétrie)
+        # Simulation of a random sensor failure on 5% of the packets (Asymmetry)
         if random.random() < 0.05:
             del leaves["leaf_ueba"]
             
@@ -136,12 +135,12 @@ if __name__ == "__main__":
             raw_ueba_scores.append(log["ueba_score"] if "leaf_ueba" in leaves else -0.05)
 
     # =====================================================================
-    # 4. GÉNÉRATION DE LA FIGURE POUR LE PAPIER
+    # 4. FIGURE GENERATION FOR THE PAPER
     # =====================================================================
     plt.style.use('default')
     plt.figure(figsize=(9, 5))
     
-    # Tri des données selon la croyance finale pour voir la courbe de décision
+    # Sorting the data according to the final belief to visualize the decision curve
     sorted_indices = sorted(range(len(final_beliefs)), key=lambda k: final_beliefs[k])
     b_plot = [final_beliefs[i] for i in sorted_indices]
     u_plot = [final_uncertainties[i] for i in sorted_indices]
@@ -158,4 +157,4 @@ if __name__ == "__main__":
     
     plt.savefig("ueba_experimental_results.pdf")
     plt.savefig("ueba_experimental_results.png", dpi=300)
-    print("[+] Expérimentation UEBA terminée. Graphiques vectoriels générés (ueba_experimental_results.pdf).")
+    print("[+] UEBA experimentation completed. Vector graphics generated (ueba_experimental_results.pdf).")
